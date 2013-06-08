@@ -1,10 +1,25 @@
 #!/usr/bin/python
-import socket,subprocess, traceback,hashlib,sys,re
+import sys,re,socket,subprocess,traceback
+
+try:
+  import hashlib
+except:
+  print "Error: Need the following librarie: hashlib"
+  print "Use your distrib packages or http://code.krypto.org/python/hashlib/"
+  sys.exit()
+
+try:
+  import netifaces
+except:
+  print "Error: Need the following librarie : netifaces"
+  print "Use your distrib packages or https://pypi.python.org/pypi/netifaces"
+  sys.exit()
+
 
 # You may change this
 port = 10666  # BroadCast Port
 password = 'Mous3l_C@ntine!!' # The Best of Luxembourg !!!
-broadcast = '192.168.1.255'  # BroadCast Address
+broadcast = '192.168.1.127'  # BroadCast Address
 action_ban = '/bin/echo iptables -I fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client name>" -j CHAOS '
 action_uban = '/bin/echo iptables -D fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client name>" -j CHAOS'
 
@@ -12,8 +27,8 @@ action_uban = '/bin/echo iptables -D fail2ban-<jail_name> -s <ip> -p <protocol> 
 # Don't touch it... if you don't know why
 host = ''
 delim = ";" 
-version = '0.0'
-header = "F2BB0000"
+version = '0.1'
+header = "F2BB"
 
 
 # functions
@@ -97,40 +112,38 @@ def func_recv():
   while 1: # Endless Loop
     try:
       payload, address = s.recvfrom(8192)
-      if payload[0:8] == header:  # si header valide
-        vhash = payload[0+8:40+8]
+      if payload[0:6] == header:  # si header valide
+        vhash = payload[0+6:40+6]
         payload =  ';'.join(payload.split(';')[1:])
         if goodhash(vhash,payload,password) == True:  # Verif signature
-          print "Got valid data from: ", address[0],
-          lcommand=[]
-          for items in payload.split(';'):
-            lcommand.append(items)
-          action = lcommand[5]
-          ip = lcommand[0]
-          dip = lcommand[6]
-          fport = lcommand[1]
-          proto = lcommand[2]
-          jail = lcommand[3]
-          print "->" ,action, ip
-          if action == 'ban':
-            daction = action_ban
-          else:
-            daction = action_uban
-          daction = daction.replace('<ip>',ip)
-          daction = daction.replace('<protocol>',proto)
-          daction = daction.replace('<port>',fport)
-          daction = daction.replace('<jail_name>',jail)
-          daction = daction.replace('<ip_dst>',dip)
-          subprocess.call(daction.split(' '))   # Execute the action
+          ip,fport,proto,jail,client,action,dip = payload.split(';')
+          if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
+            print "Got valid data from: ", address[0],
+            print "->" ,action, ip
+            if action.lower() == 'ban':
+              daction = action_ban
+            else:
+              daction = action_uban
+            daction = daction.replace('<ip>',ip)
+            daction = daction.replace('<port>',fport)
+            daction = daction.replace('<protocol>',proto)
+            daction = daction.replace('<jail_name>',jail)
+            daction = daction.replace('<client name>',client)  #    Why used ??
+            daction = daction.replace('<ip_dst>',dip)
+            subprocess.call(daction.split(' '))   # Execute the action
     except (KeyboardInterrupt, SystemExit):
-        raise
+      raise
     except:
-        traceback.print_exc()
+      traceback.print_exc()
 
-
+def init():
+  global header
+  vmaj,vmin = version.split('.')
+  header = header + chr(int(vmaj)) + chr(int(vmin))
 
 # Main programm
 if __name__ == '__main__':
+  init()
   if len(sys.argv) >= 2:
     if sys.argv[1] == '-h':
       func_help()
