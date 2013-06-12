@@ -39,8 +39,8 @@ except:
 port = 10666  # BroadCast Port
 password = 'Mous3l_C@ntine!!' # The Best of Luxembourg !!!
 broadcast = '192.168.1.127'  # BroadCast Address
-action_ban = '/bin/echo iptables -I fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client name>" -j CHAOS '
-action_uban = '/bin/echo iptables -D fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client name>" -j CHAOS'
+action_ban = '/bin/echo iptables -I fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client_name>" -j CHAOS '
+action_uban = '/bin/echo iptables -D fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client_name>" -j CHAOS'
 
 
 # Don't touch it... if you don't know why
@@ -100,7 +100,7 @@ def func_send():
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-  ip,fport,proto,jail,client,action,name,dip = sys.argv[2:]
+  ip,fport,proto,jail,client,action,dip = sys.argv[2:]
 
   if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
     message = str(time.time())+delim+ip+delim+fport+delim+proto+delim+jail+delim+client+delim+action+delim+dip
@@ -148,7 +148,7 @@ def func_recv():
               daction = daction.replace('<port>',fport)
               daction = daction.replace('<protocol>',proto)
               daction = daction.replace('<jail_name>',jail)
-              daction = daction.replace('<client name>',client)  #    Why used ??
+              daction = daction.replace('<client_name>',client)  #    Why used ??
               daction = daction.replace('<ip_dst>',dip)
               subprocess.call(daction.split(' '))   # Execute the action
     except (KeyboardInterrupt, SystemExit):
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     if sys.argv[1] == '-h':
       func_help()
       sys.exit()
-    elif (sys.argv[1] == '-s') and (len(sys.argv) == 10):
+    elif (sys.argv[1] == '-s') and (len(sys.argv) == 9):
       func_send()
       sys.exit()
     elif sys.argv[1] == '-d':
