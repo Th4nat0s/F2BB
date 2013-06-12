@@ -8,20 +8,20 @@ F2BB
 Consider the following network design with 3 servers:<br>
 
 <pre><code>
-[A]---+---[FW]-----(Internet)<br>
-      |<br>
-[B]---|<br>    
-      |<br>
-[C]---+<br>
+[A]---+---[FW]-----(Internet)
+      |
+[B]---|    
+      |
+[C]---+
 </code></pre>
 
 <pre><code>
-[A]---+<br>
-      |<br>
-[B]---+-----(Internet)<br>            
-      |<br>
-[B]---+<br>            
-</code><pre>
+[A]---+
+      |
+[B]---+-----(Internet)
+      |
+[B]---+            
+</code></pre>
 
 You may want to apply a fail2ban ban action on the frontend firewall or even on a each server of a pool.<br>
 F2BB will broadcast F2B updates to the network. Update are signed so only members of fail2ban domain will be updated.<br>
