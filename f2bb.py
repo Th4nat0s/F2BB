@@ -18,7 +18,7 @@
 # along with Fail2Ban BroadCast; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-import sys,re,socket,subprocess,traceback
+import time,sys,re,socket,subprocess,traceback
 
 try:
   import hashlib
@@ -48,7 +48,7 @@ host = ''
 delim = ";" 
 version = '0.1'
 header = "F2BB"
-
+mdelay = 0.5  # maxtime of message in sec
 
 # functions
 def sign(msg,passwd):
@@ -97,14 +97,13 @@ def func_help():
 
 # Send program
 def func_send():
-
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
   ip,fport,proto,jail,client,action,name,dip = sys.argv[2:]
 
   if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
-    message = ip+delim+fport+delim+proto+delim+jail+delim+client+delim+action+delim+dip
+    message = str(time.time())+delim+ip+delim+fport+delim+proto+delim+jail+delim+client+delim+action+delim+dip
     try:
       s.sendto(header+sign(message,password)+";"+message, (broadcast, port ))
     except:
@@ -133,23 +132,25 @@ def func_recv():
       payload, address = s.recvfrom(8192)
       if payload[0:6] == header:  # si header valide
         vhash = payload[0+6:40+6]
-        payload =  ';'.join(payload.split(';')[1:])
+        payload = ';'.join(payload.split(';')[1:])
         if goodhash(vhash,payload,password) == True:  # Verif signature
-          ip,fport,proto,jail,client,action,dip = payload.split(';')
-          if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
-            print "Got valid data from: ", address[0],
-            print "->" ,action, ip
-            if action.lower() == 'ban':
-              daction = action_ban
-            else:
-              daction = action_uban
-            daction = daction.replace('<ip>',ip)
-            daction = daction.replace('<port>',fport)
-            daction = daction.replace('<protocol>',proto)
-            daction = daction.replace('<jail_name>',jail)
-            daction = daction.replace('<client name>',client)  #    Why used ??
-            daction = daction.replace('<ip_dst>',dip)
-            subprocess.call(daction.split(' '))   # Execute the action
+          dtick,ip,fport,proto,jail,client,action,dip = payload.split(';')
+          dtick = float(dtick)
+          if (dtick > time.time()-mdelay) and (dtick < time.time()+mdelay): # Verif timestamp
+            if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
+              print "Got valid data from: ", address[0],
+              print "->" ,action, ip
+              if action.lower() == 'ban':
+                daction = action_ban
+              else:
+                daction = action_uban
+              daction = daction.replace('<ip>',ip)
+              daction = daction.replace('<port>',fport)
+              daction = daction.replace('<protocol>',proto)
+              daction = daction.replace('<jail_name>',jail)
+              daction = daction.replace('<client name>',client)  #    Why used ??
+              daction = daction.replace('<ip_dst>',dip)
+              subprocess.call(daction.split(' '))   # Execute the action
     except (KeyboardInterrupt, SystemExit):
       raise
     except:
@@ -167,7 +168,7 @@ if __name__ == '__main__':
     if sys.argv[1] == '-h':
       func_help()
       sys.exit()
-    elif (sys.argv[1] == '-s'): # and (len(sys.argv) == 9):
+    elif (sys.argv[1] == '-s') and (len(sys.argv) == 10):
       func_send()
       sys.exit()
     elif sys.argv[1] == '-d':

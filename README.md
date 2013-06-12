@@ -7,21 +7,21 @@ F2BB
 
 Consider the following network design with 3 servers:<br>
 
-<code>
+<pre><code>
 [A]---+---[FW]-----(Internet)<br>
       |<br>
 [B]---|<br>    
       |<br>
 [C]---+<br>
-</code>
+</code></pre>
 
-<code>
+<pre><code>
 [A]---+<br>
       |<br>
 [B]---+-----(Internet)<br>            
       |<br>
 [B]---+<br>            
-</code>
+</code><pre>
 
 You may want to apply a fail2ban ban action on the frontend firewall or even on a each server of a pool.<br>
 F2BB will broadcast F2B updates to the network. Update are signed so only members of fail2ban domain will be updated.<br>
@@ -40,7 +40,8 @@ timestamp update to avoid replay<br>
 
 
 Security remarks:<br> 
-You may replay any of ban or unban broadcast. but broadcast don't pass routers<br>
+You may not replay ban or unban broadcast they are timestamped.<br> 
+Remembre broadcasts don't pass routers<br>
 Update message are send in clear (Who cares)<br>
 Packed are signed with a hmac , 1024 sha1 are done to slow down bruteforce attempt<br>
 
