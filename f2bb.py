@@ -131,7 +131,6 @@ def func_recv():
   while 1: # Endless Loop
     try:
       payload, address = s.recvfrom(8192)
-      print payload
       if payload[0:6] == header:  # si header valide
         vhash = payload[0+6:40+6]
         payload = ';'.join(payload.split(';')[1:])
@@ -162,37 +161,33 @@ def enderror(msg):
   print ('Error: %s') % ( msg)
   sys.exit(1)
 
+def getparm(obj,section,oconf):
+  try:
+    tresult = obj.get(section,oconf)
+    tresult = re.search(r'^[\'](.*)[\']$',tresult) # Remove quotes
+    tresult = tresult.group(1)
+  except:
+    enderror('Invalid ' + oconf +' configuration')
+  return tresult
+
 def init():
   global header,port,password,broadcast,action_ban,action_uban
   vmaj,vmin = version.split('.')
   header = header + chr(int(vmaj)) + chr(int(vmin))
 
+  # Read config File
   CONFIG = ConfigParser.ConfigParser()
   CONFIG.sections()
   CONFIG.read(INIFILE)
-
   section = 'DEFAULT'
   try:
-    port = int(CONFIG.get(section,'port'))
+    port = int(getparm(CONFIG,section,'port'))
   except:
     enderror('Invalid port configuration')
-  try:
-    password = CONFIG.get(section,'password')
-  except:
-    enderror('Invalid password configuration')
-  try:
-    broadcast = CONFIG.get(section,'broadcast')
-  except:
-    enderror('Invalid Broadcast configuration')
-  try:
-    action_ban = CONFIG.get(section,'action_ban')
-  except:
-    enderror('Invalid Ban configuration')
-  try:
-    action_uban = CONFIG.get(section,'action_uban')
-  except:
-    enderror('Invalid UnBan configuration')
- 
+  broadcast = getparm(CONFIG,section,'broadcast')
+  password = getparm(CONFIG,section,'password')
+  action_ban = getparm(CONFIG,section,'action_ban')
+  action_uban = getparm(CONFIG,section,'action_uban')
 
 # Main programm
 if __name__ == '__main__':
@@ -208,11 +203,9 @@ if __name__ == '__main__':
       func_recv()
       sys.exit()
     else:
-      print "Error: Parameters not recognized"
       func_help()
-      sys.exit()
+      enderror('Parameter not recognized')
   else:
     func_help()
-    print "Error: i love many parameters"
-    sys.exit(1)
+    enderror('I Love many parameters')
 
