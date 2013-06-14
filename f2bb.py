@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-#
 # F2BB Fail2Ban Broadcast
 # (c) Thanat0s 2013
 #
@@ -34,21 +33,23 @@ except:
   print "Use your distrib packages or https://pypi.python.org/pypi/netifaces"
   sys.exit()
 
+try:
+  import ConfigParser
+except:
+  print "Error: Need the following librarie : ConfigParser"
+  print "Use your distrib packages or http://wiki.python.org/moin/ConfigParser"
+  sys.exit()
 
-# You may change this
-port = 10666  # BroadCast Port
-password = 'Mous3l_C@ntine!!' # The Best of Luxembourg !!!
-broadcast = '192.168.1.127'  # BroadCast Address
-action_ban = '/bin/echo iptables -I fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client_name>" -j CHAOS '
-action_uban = '/bin/echo iptables -D fail2ban-<jail_name> -s <ip> -p <protocol> -d <ip_dst> -m multiport --dports <port> -m comment --comment "<client_name>" -j CHAOS'
+# Inifile location
+INIFILE = "/etc/cfg-f2bb.conf"
 
 
 # Don't touch it... if you don't know why
 host = ''
 delim = ";" 
-version = '0.1'
+version = '0.2'
 header = "F2BB"
-mdelay = 0.5  # maxtime of message in sec
+mdelay = 0.75  # maxtime of message in sec
 
 # functions
 def sign(msg,passwd):
@@ -130,6 +131,7 @@ def func_recv():
   while 1: # Endless Loop
     try:
       payload, address = s.recvfrom(8192)
+      print payload
       if payload[0:6] == header:  # si header valide
         vhash = payload[0+6:40+6]
         payload = ';'.join(payload.split(';')[1:])
@@ -156,10 +158,41 @@ def func_recv():
     except:
       traceback.print_exc()
 
+def enderror(msg):
+  print ('Error: %s') % ( msg)
+  sys.exit(1)
+
 def init():
-  global header
+  global header,port,password,broadcast,action_ban,action_uban
   vmaj,vmin = version.split('.')
   header = header + chr(int(vmaj)) + chr(int(vmin))
+
+  CONFIG = ConfigParser.ConfigParser()
+  CONFIG.sections()
+  CONFIG.read(INIFILE)
+
+  section = 'DEFAULT'
+  try:
+    port = int(CONFIG.get(section,'port'))
+  except:
+    enderror('Invalid port configuration')
+  try:
+    password = CONFIG.get(section,'password')
+  except:
+    enderror('Invalid password configuration')
+  try:
+    broadcast = CONFIG.get(section,'broadcast')
+  except:
+    enderror('Invalid Broadcast configuration')
+  try:
+    action_ban = CONFIG.get(section,'action_ban')
+  except:
+    enderror('Invalid Ban configuration')
+  try:
+    action_uban = CONFIG.get(section,'action_uban')
+  except:
+    enderror('Invalid UnBan configuration')
+ 
 
 # Main programm
 if __name__ == '__main__':
