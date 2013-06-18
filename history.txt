@@ -1,0 +1,6 @@
+v0.3
+
++ using argparse
++ verbose debug mode
+
+

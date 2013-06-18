@@ -17,7 +17,7 @@
 # along with Fail2Ban BroadCast; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-import time,sys,re,socket,subprocess,traceback
+import time,sys,re,socket,subprocess,traceback,argparse
 
 try:
   import hashlib
@@ -43,21 +43,24 @@ except:
 # Inifile location
 INIFILE = "/etc/cfg-f2bb.conf"
 
-
 # Don't touch it... if you don't know why
 host = ''
 delim = ";" 
-version = '0.2'
+version = '0.3'
 header = "F2BB"
 mdelay = 0.75  # maxtime of message in sec
+verbose = False
 
 # functions
+
+# Sign message
 def sign(msg,passwd):
   message = hashlib.sha1(hashlib.sha1(passwd).hexdigest()+hashlib.sha1(msg).hexdigest()).hexdigest()
   for i in range(1024):
         message = hashlib.sha1(message).hexdigest()
   return message
 
+# Validate IP
 def okip(param):
   try:
     socket.inet_aton(param)
@@ -89,28 +92,37 @@ def okaction(param):
   else:
     return False
 
-def func_help():
-  print 'F2BB Fail2BanBroadcast v'+version,
-  print ' - (c) Thanat0s 2013 - Use at your own risk' 
-  print 'Usage '+sys.argv[0]+' -s src_ip port protocol jailname clientname action dst_ip'
-  print 'Usage '+sys.argv[0]+' -d '
-  print ' -s send a ban broadcast, -d start a listen daemon, -h help'
-
 # Send program
-def func_send():
+def func_send(arg):
+
+  # Validates parameters
+  if not okip(arg.ip_src):
+    enderror('Invalid source ip')
+  if not okport(arg.port):
+    enderror('Invalid port')
+  if not okproto(arg.protocol):
+    enderror('Invalid protocol')
+  if not okstring(arg.jail_name):
+    enderror('Invalid jail')
+  if not okstring(arg.client_name):
+    enderror('Invalid client name')
+  if not okaction(arg.action):
+    enderror('Invalid action')
+  if not okip(arg.ip_dst):
+    enderror('Invalid destination ip')
+    
+    
+  dbgprint ("All parameters correct...")
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-  ip,fport,proto,jail,client,action,dip = sys.argv[2:]
-
-  if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
-    message = str(time.time())+delim+ip+delim+fport+delim+proto+delim+jail+delim+client+delim+action+delim+dip
-    try:
-      s.sendto(header+sign(message,password)+";"+message, (broadcast, port ))
-    except:
-      traceback.print_exc()
-  else:
-    print "BullShit en Input"
+  message = str(time.time())+delim+arg.ip_src+delim+arg.port+delim+arg.protocol+delim+arg.jail_name+delim+arg.client_name+delim+arg.action+delim+arg.ip_dst
+  try:
+    s.sendto(header+sign(message,password)+";"+message, (broadcast, port ))
+    dbgprint ("Packet sent to " + broadcast + ':' + str(port))
+  except:
+    dbgprint ("Error sending packet")
+    traceback.print_exc()
 
 def goodhash(lhash,lpayload,lpassword):
   if re.search(r'^[a-f0-9]{40}$',lhash,re.I): # Si len ok, lourde regex
@@ -119,19 +131,21 @@ def goodhash(lhash,lpayload,lpassword):
   else:
     return False
 
-
 # Receive program
-def func_recv():
+def func_recv(args):
+  #print args.verbose
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
   s.bind((host, port))
 
-  print ("Daemon Started...")
+  dbgprint ("Daemon Started...")
   while 1: # Endless Loop
     try:
       payload, address = s.recvfrom(8192)
+      dbgprint ("Packet received")
       if payload[0:6] == header:  # si header valide
+        dbgprint ("Packed header ok")
         vhash = payload[0+6:40+6]
         payload = ';'.join(payload.split(';')[1:])
         if goodhash(vhash,payload,password) == True:  # Verif signature
@@ -139,8 +153,7 @@ def func_recv():
           dtick = float(dtick)
           if (dtick > time.time()-mdelay) and (dtick < time.time()+mdelay): # Verif timestamp
             if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
-              print "Got valid data from: ", address[0],
-              print "->" ,action, ip
+              dbgprint (action + " from " + ip + " received" )
               if action.lower() == 'ban':
                 daction = action_ban
               else:
@@ -152,10 +165,22 @@ def func_recv():
               daction = daction.replace('<client_name>',client)  #    Why used ??
               daction = daction.replace('<ip_dst>',dip)
               subprocess.call(daction.split(' '))   # Execute the action
+            
+            else:
+              dbgprint("Invalid data")
+          else:
+            dbgprint("Invalid timestamp")
+        else:
+          dbgprint("Invalid packet signature")
+      else:
+        dbgprint ("Wrong packet header")
     except (KeyboardInterrupt, SystemExit):
-      raise
+      if verbose:
+        raise
+      else:
+        sys.exit(0)
     except:
-      traceback.print_exc()
+        traceback.print_exc()
 
 def enderror(msg):
   print ('Error: %s') % ( msg)
@@ -164,13 +189,40 @@ def enderror(msg):
 def getparm(obj,section,oconf):
   try:
     tresult = obj.get(section,oconf)
-    tresult = re.search(r'^[\'](.*)[\']$',tresult) # Remove quotes
-    tresult = tresult.group(1)
+    tresult = re.search(r'^([\'\"])(.*)\1$',tresult) # Remove quotes
+    tresult = tresult.group(2)
   except:
     enderror('Invalid ' + oconf +' configuration')
   return tresult
 
+def dbgprint(mystr):
+  if verbose:
+    print ("%s %s") % (time.ctime(time.time()),mystr)
+
 def init():
+  parser = argparse.ArgumentParser( description='F2BB v'+version+' (c) Thanatos 2013', usage='Broadcast Fail2Ban updates to a pool\n')
+  parser.add_argument('-v', '--verbose', action='store_true', help='verbose mode', dest='verbose')
+  subparsers = parser.add_subparsers(help='sub-command help')
+  
+  parser_c = subparsers.add_parser('client', help='send a ban broadcast')
+  parser_c.add_argument('-a','--action',required=True,  help='F2b action ban/unban')
+  parser_c.add_argument('-s','--ip_src', required=True, help='source ip to block')
+  parser_c.add_argument('-o','--port', required=True, help='destination port to block')
+  parser_c.add_argument('-p','--protocol', required=True, help='protocol used')
+  parser_c.add_argument('-j','--jail_name',  required=True, help='Jail name')
+  parser_c.add_argument('-c','--client_name',required=True,  help='client name')
+  parser_c.add_argument('-d','--ip_dst', required=True, help='destination ip')
+  parser_c.set_defaults(func=func_send)
+
+  parser_d = subparsers.add_parser('daemon',help='start the daemon mode' )
+  parser_d.set_defaults(func=func_recv)
+
+  args = parser.parse_args()
+  argsdict = vars(args)
+  if argsdict['verbose']:
+    global verbose
+    verbose = True
+
   global header,port,password,broadcast,action_ban,action_uban
   vmaj,vmin = version.split('.')
   header = header + chr(int(vmaj)) + chr(int(vmin))
@@ -189,23 +241,9 @@ def init():
   action_ban = getparm(CONFIG,section,'action_ban')
   action_uban = getparm(CONFIG,section,'action_uban')
 
+  # Launche the right function
+  args.func(args)
+
 # Main programm
 if __name__ == '__main__':
   init()
-  if len(sys.argv) >= 2:
-    if sys.argv[1] == '-h':
-      func_help()
-      sys.exit()
-    elif (sys.argv[1] == '-s') and (len(sys.argv) == 9):
-      func_send()
-      sys.exit()
-    elif sys.argv[1] == '-d':
-      func_recv()
-      sys.exit()
-    else:
-      func_help()
-      enderror('Parameter not recognized')
-  else:
-    func_help()
-    enderror('I Love many parameters')
-

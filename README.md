@@ -36,7 +36,6 @@ Fail2Ban is available at: https://github.com/fail2ban/fail2ban or in your prefer
 use fail2ban client natively to ban/uban<br>
 Log events<br>
 ipv6 support<br>
-improve configuration file parsing<br>
 
 <b>Security remarks:<br></b>
 You may not replay ban or unban broadcast they are timestamped. (Needs timed servers)<br> 
