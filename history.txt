@@ -1,5 +1,6 @@
 v0.3
 
++ logging enabled
 + using argparse
 + verbose debug mode
 

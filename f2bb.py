@@ -92,6 +92,22 @@ def okaction(param):
   else:
     return False
 
+def prtlog(arg):
+  logc = log.replace('<timestamp>',time.ctime(time.time()) )
+  logc = logc.replace('<mode>',arg['mode'])
+  logc = logc.replace('<ip_src>',arg['ip_src'])
+  logc = logc.replace('<port>',arg['port'])
+  logc = logc.replace('<protocol>',arg['protocol'])
+  logc = logc.replace('<jail_name>',arg['jail_name'])
+  logc = logc.replace('<client_name>',arg['client_name'])
+  logc = logc.replace('<action>',arg['action'])
+  logc = logc.replace('<ip_dst>',arg['ip_dst'])
+  try: 
+    with open(logfile,'a') as mylog:
+      mylog.write(logc + '\n')
+  except:
+    dbgprint ("Write error logging event")
+
 # Send program
 def func_send(arg):
 
@@ -111,7 +127,6 @@ def func_send(arg):
   if not okip(arg.ip_dst):
     enderror('Invalid destination ip')
     
-    
   dbgprint ("All parameters correct...")
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -120,6 +135,8 @@ def func_send(arg):
   try:
     s.sendto(header+sign(message,password)+";"+message, (broadcast, port ))
     dbgprint ("Packet sent to " + broadcast + ':' + str(port))
+    if int(logtype) and 1: 
+      prtlog({'mode': 'client' , 'ip_src': arg.ip_src, 'port': arg.port, 'protocol': arg.protocol, 'jail_name': arg.jail_name, 'client_name': arg.client_name , 'action':arg.action, 'ip_dst': arg.ip_dst})
   except:
     dbgprint ("Error sending packet")
     traceback.print_exc()
@@ -165,7 +182,8 @@ def func_recv(args):
               daction = daction.replace('<client_name>',client)  #    Why used ??
               daction = daction.replace('<ip_dst>',dip)
               subprocess.call(daction.split(' '))   # Execute the action
-            
+              if int(logtype) and 2: 
+                prtlog({'mode': 'daemon' , 'ip_src': ip, 'port': fport, 'protocol': proto, 'jail_name': jail, 'client_name': client , 'action':action, 'ip_dst': dip})
             else:
               dbgprint("Invalid data")
           else:
@@ -223,7 +241,7 @@ def init():
     global verbose
     verbose = True
 
-  global header,port,password,broadcast,action_ban,action_uban
+  global header,port,password,broadcast,action_ban,action_uban,log,logtype,logfile
   vmaj,vmin = version.split('.')
   header = header + chr(int(vmaj)) + chr(int(vmin))
 
@@ -240,6 +258,10 @@ def init():
   password = getparm(CONFIG,section,'password')
   action_ban = getparm(CONFIG,section,'action_ban')
   action_uban = getparm(CONFIG,section,'action_uban')
+
+  log = getparm(CONFIG,section,'log')
+  logfile = getparm(CONFIG,section,'logfile')
+  logtype = getparm(CONFIG,section,'logtype')
 
   # Launche the right function
   args.func(args)
