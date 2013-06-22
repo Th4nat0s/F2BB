@@ -1,4 +1,9 @@
-v0.3
+v0.3.1
+
+\ log time format to rfc3339
+\ escaping of some char in action strings ' " /
+
+v0.3.0
 
 + logging enabled
 + using argparse
