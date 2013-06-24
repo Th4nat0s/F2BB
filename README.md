@@ -34,7 +34,9 @@ Fail2Ban is available at: https://github.com/fail2ban/fail2ban or in your prefer
 
 <b>Todo:<br></b>
 use fail2ban client natively to ban/uban<br>
-ipv6 support<br>
+config of broadcast binded to ethernet card<br> 
+sync over multicast for ipv4 and ipv6<br>
+
 
 <b>Features:<br></b>
 fully customisable<br>

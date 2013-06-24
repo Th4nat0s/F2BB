@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 
 # F2BB Fail2Ban Broadcast
 # (c) Thanat0s 2013
@@ -17,7 +19,7 @@
 # along with Fail2Ban BroadCast; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-import time,datetime,sys,re,socket,subprocess,traceback,argparse
+import time,datetime,sys,re,socket,subprocess,traceback,argparse,shlex
 
 try:
   import hashlib
@@ -46,7 +48,7 @@ INIFILE = "/etc/cfg-f2bb.conf"
 # Don't touch it... if you don't know why
 host = ''
 delim = ";" 
-version = '0.3.1'
+version = '0.3.2'
 header = "F2BB"
 mdelay = 0.75  # maxtime of message in sec
 verbose = False
@@ -66,6 +68,12 @@ def okip(param):
     socket.inet_aton(param)
     return True
   except socket.error:
+    if ipv6:
+      try:
+        socket.inet_pton(socket.AF_INET6, param)
+        return True
+      except socket.error:
+        return False
     return False
 
 def okproto(param):
@@ -113,6 +121,13 @@ def prtlog(arg):
 def func_send(arg):
 
   # Validates parameters
+  if ipv6 and ((arg.ip_src.find(':') >= 1) and (arg.ip_dst.find(':') == -1 )):
+    enderror('Mixed IPv4 and IPv6')
+  if ipv6 and ((arg.ip_src.find(':') == -1) and (arg.ip_dst.find(':') >= 1 )):
+    enderror('Mixed IPv4 and IPv6')
+  if (not ipv6) and ((arg.ip_src.find(':') >= 1) or (arg.ip_dst.find(':') >= 1) ):
+    enderror('IPv6 Deactivated')
+  
   if not okip(arg.ip_src):
     enderror('Invalid source ip')
   if not okport(arg.port):
@@ -127,7 +142,7 @@ def func_send(arg):
     enderror('Invalid action')
   if not okip(arg.ip_dst):
     enderror('Invalid destination ip')
-    
+  
   dbgprint ("All parameters correct...")
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -149,12 +164,6 @@ def goodhash(lhash,lpayload,lpassword):
   else:
     return False
 
-def escapestr(instr):
-  instr = instr.replace('"','\"')
-  instr = instr.replace("'","\'")
-  instr = instr.replace('\\','\\\\')
-  return (instr)
-
 # Receive program
 def func_recv(args):
   #print args.verbose
@@ -173,24 +182,35 @@ def func_recv(args):
         vhash = payload[0+6:40+6]
         payload = ';'.join(payload.split(';')[1:])
         if goodhash(vhash,payload,password) == True:  # Verif signature
-          dtick,ip,fport,proto,jail,client,action,dip = payload.split(';')
+          dtick,ip_src,fport,proto,jail,client,action,ip_dst= payload.split(';')
           dtick = float(dtick)
           if (dtick > time.time()-mdelay) and (dtick < time.time()+mdelay): # Verif timestamp
-            if okip(ip) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(dip):
-              dbgprint (action + " from " + ip + " received" )
-              if action.lower() == 'ban':
-                daction = action_ban
+            if okip(ip_src) and okport(fport) and okproto(proto) and okstring(jail) and okstring(client) and okaction(action) and okip(ip_dst):
+              dbgprint (action + " from " + address[0] + " received" )
+              if ipv6 and (ip_src.find(':') >= 1) and (ip_dst.find(':') >=1 ):
+                if action.lower() == 'ban':
+                  daction = action6_ban
+                else:
+                  daction = action6_uban
               else:
-                daction = action_uban
-              daction = daction.replace('<ip>',ip)
+                if action.lower() == 'ban':
+                  daction = action_ban
+                else:
+                  daction = action_uban
+              daction = daction.replace('<ip_src>',ip_src)
               daction = daction.replace('<port>',fport)
               daction = daction.replace('<protocol>',proto)
               daction = daction.replace('<jail_name>',jail)
               daction = daction.replace('<client_name>',client)  #    Why used ??
-              daction = daction.replace('<ip_dst>',dip)
-              subprocess.call(daction.split(' '))   # Execute the action
+              daction = daction.replace('<ip_dst>',ip_dst)
+              dbgprint ("Executing :" + daction)
+              try:
+                rcode = subprocess.call(shlex.split(daction))   # Execute the action
+                dbgprint ("Return code :" +str(rcode))
+              except:
+                dbgprint ("Error in execution")
               if int(logtype) & 2: 
-                prtlog({'mode': 'daemon' , 'ip_src': ip, 'port': fport, 'protocol': proto, 'jail_name': jail, 'client_name': client , 'action':action, 'ip_dst': dip})
+                prtlog({'mode': 'daemon' , 'ip_src': ip_src, 'port': fport, 'protocol': proto, 'jail_name': jail, 'client_name': client , 'action':action, 'ip_dst': ip_dst})
             else:
               dbgprint("Invalid data")
           else:
@@ -214,8 +234,13 @@ def enderror(msg):
 def getparm(obj,section,oconf):
   try:
     tresult = obj.get(section,oconf)
-    tresult = re.search(r'^([\'\"])(.*)\1$',tresult) # Remove quotes
-    tresult = tresult.group(2)
+    if (tresult[0] == '"') or (tresult[0] == "'"): # is it quoted ??
+      tresult = re.search(r'^([\'\"])(.*)\1$',tresult) # Remove quotes, keep inside
+      tresult = tresult.group(2)
+    if tresult.lower == 'true': # A magic true or false word ??
+      tresult = True
+    if tresult.lower == 'false':
+      tresult = False
   except:
     enderror('Invalid ' + oconf +' configuration')
   return tresult
@@ -248,7 +273,7 @@ def init():
     global verbose
     verbose = True
 
-  global header,port,password,broadcast,action_ban,action_uban,log,logtype,logfile
+  global header,port,password,broadcast,action_ban,action_uban,log,logtype,logfile,ipv6,action6_ban,action6_uban
   vmaj,vmin,vsub = version.split('.')
   header = header + chr(int(vmaj)) + chr(int(vmin))
 
@@ -263,10 +288,19 @@ def init():
     enderror('Invalid port configuration')
   broadcast = getparm(CONFIG,section,'broadcast')
   password = getparm(CONFIG,section,'password')
-  action_ban = escapestr( getparm(CONFIG,section,'action_ban'))
-  action_uban = escapestr(getparm(CONFIG,section,'action_uban'))
+  action_ban =  getparm(CONFIG,section,'action_ban')
+  action_uban = getparm(CONFIG,section,'action_uban')
 
-  
+  # IPv6 Processing
+  ipv6 = getparm(CONFIG,section,'ipv6')
+  if (ipv6.lower() == 'true'):
+    ipv6 = True
+  else:
+    ipv6 = False
+
+  if ipv6:
+    action6_ban = getparm(CONFIG,section,'action6_ban')
+    action6_uban = getparm(CONFIG,section,'action6_uban')
 
   log = getparm(CONFIG,section,'log')
   logfile = getparm(CONFIG,section,'logfile')

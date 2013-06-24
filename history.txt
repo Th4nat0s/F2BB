@@ -1,3 +1,8 @@
+v0.3.2
+
++ Ipv6 support for actions
+\ Better escaping
+
 v0.3.1
 
 \ log time format to rfc3339
@@ -8,5 +13,3 @@ v0.3.0
 + logging enabled
 + using argparse
 + verbose debug mode
-
-
