@@ -237,12 +237,13 @@ def getparm(obj,section,oconf):
     if (tresult[0] == '"') or (tresult[0] == "'"): # is it quoted ??
       tresult = re.search(r'^([\'\"])(.*)\1$',tresult) # Remove quotes, keep inside
       tresult = tresult.group(2)
-    if tresult.lower == 'true': # A magic true or false word ??
-      tresult = True
-    if tresult.lower == 'false':
-      tresult = False
   except:
     enderror('Invalid ' + oconf +' configuration')
+  if (tresult.lower() == 'true'): # A magic true or false word ??
+    tresult = True
+    return tresult
+  if (tresult.lower() == 'false'):
+    tresult = False
   return tresult
 
 def dbgprint(mystr):
@@ -293,11 +294,6 @@ def init():
 
   # IPv6 Processing
   ipv6 = getparm(CONFIG,section,'ipv6')
-  if (ipv6.lower() == 'true'):
-    ipv6 = True
-  else:
-    ipv6 = False
-
   if ipv6:
     action6_ban = getparm(CONFIG,section,'action6_ban')
     action6_uban = getparm(CONFIG,section,'action6_uban')
